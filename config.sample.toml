@@ -1,0 +1,9 @@
+Currency = "USD"
+BindAddress = ":9091"
+[[Coins]]
+Name = "BTC"
+Amount = 1.0
+
+[[Coins]]
+Name = "ETH"
+Amount = 1.0
