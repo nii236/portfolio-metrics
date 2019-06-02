@@ -41,7 +41,7 @@ func main() {
 	}
 
 	coins := GetCoins(config)
-	gauges := PrepareGauges(coins)
+	gauges := PrepareGauges(coins, config.Currency)
 	UpdatePortfolio(config, coins, config.Currency, gauges)
 	StartSubscription(config, coins, config.Currency, gauges)
 	r := chi.NewRouter()
@@ -64,14 +64,14 @@ func StartSubscription(config *Config, coins []string, currency string, gauges m
 }
 
 // PrepareGauges iterates over the crypto symbols and adds them to the prometheus metrics
-func PrepareGauges(coins []string) map[string]prometheus.Gauge {
+func PrepareGauges(coins []string, currency string) map[string]prometheus.Gauge {
 	gauges := map[string]prometheus.Gauge{}
 	for _, coin := range coins {
 		symbol := strings.ToLower(coin)
 		gauge := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "nii236_crypto",
-			Subsystem: "portfolio_metrics",
-			Name:      symbol,
+			Namespace: "portfolio_metrics",
+			Subsystem: symbol,
+			Name:      strings.ToLower(currency),
 			Help:      "Ticker for a specific crypto",
 		})
 		prometheus.Register(gauge)
