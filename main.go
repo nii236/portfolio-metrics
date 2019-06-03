@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -16,6 +17,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+var portfolioTotal *atomic.Value
 
 // PriceAPIURL is the API endpoint for pricing data
 const PriceAPIURL = "https://min-api.cryptocompare.com/data/pricemulti"
@@ -34,6 +37,7 @@ type CoinConfig struct {
 }
 
 func main() {
+	portfolioTotal = &atomic.Value{}
 	config, err := ParseConfig()
 	if err != nil {
 		fmt.Println(err)
@@ -46,8 +50,18 @@ func main() {
 	StartSubscription(config, coins, config.Currency, gauges)
 	r := chi.NewRouter()
 	r.Handle("/metrics", promhttp.Handler())
+	r.Get("/", GetPortfolio(gauges))
 	fmt.Println("Starting on", config.BindAddress)
 	log.Fatalln(http.ListenAndServe(config.BindAddress, r))
+}
+
+// GetPortfolio returns the total value of the portfolio
+func GetPortfolio(gauges map[string]prometheus.Gauge) http.HandlerFunc {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(fmt.Sprintf("%.2f", portfolioTotal.Load())))
+	}
+
+	return fn
 }
 
 // StartSubscription will update the portfolio every minute
@@ -108,14 +122,19 @@ func UpdatePortfolio(config *Config, coins []string, currency string, gauges map
 		fmt.Println(err)
 		return
 	}
+	total := 0.0
 	for tsym, psyms := range prices {
 		symbol := strings.ToLower(tsym)
 		for pName, psym := range psyms {
 			if strings.ToLower(pName) == strings.ToLower(currency) {
-				gauges[symbol].Set(psym * GetAmount(config, tsym))
+				subtotal := psym * GetAmount(config, tsym)
+				gauges[symbol].Set(total)
+				total = total + subtotal
 			}
 		}
 	}
+	portfolioTotal.Store(total)
+
 }
 
 // GetAmount pulls the amount for a specific coin
